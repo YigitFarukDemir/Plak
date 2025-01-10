@@ -1,10 +1,15 @@
 import { Text, View } from 'react-native'
-import React, { Component } from 'react'
+import React, { Component,createContext } from 'react'
 import * as MediaLibrary from 'expo-media-library';
 
+export const AudioContext = createContext()
 export class AudioProvider extends Component {
     constructor(props){
         super(props)
+        this.state={
+            audioFiles: [],
+            permissionError: false
+        }
     }
 
     permissionAllert = () => {
@@ -17,11 +22,27 @@ export class AudioProvider extends Component {
         }])
     }
 
+    getAudioFiles = async () => {
+        let media = await MediaLibrary.getAssetsAsync({
+            mediaType: 'audio'
+        });
+        media = await MediaLibrary.getAssetsAsync({
+            mediaType: 'audio',
+            first: media.totalCount,
+        });
+        this.setState({...this.state, audioFiles: media.assets})
+    }
+
     getPermission = async () => {
         const permission = await MediaLibrary.getPermissionsAsync()
         if(permission.granted){
             // ses dosyalarını oku
+            this.getAudioFiles()
         }
+        if(!permission.canAskAgain && !permission.granted){
+            this.setState({...this.state,permissionError: true})
+        }
+
         if(!permission.granted && permission.canAskAgain){
             const {status, canAskAgain} = await MediaLibrary.requestPermissionsAsync();
             if(status === 'denied' && canAskAgain){
@@ -30,23 +51,34 @@ export class AudioProvider extends Component {
             }
             if(status === 'granted'){
                 //ses dosyalarını oku
+                this.getAudioFiles();
             }
             if(status === 'denied' && !canAskAgain){
                 //hata göster
+                this.setState({...this.state,permissionError: true})
             }
         }
     }
 
     componentDidMount(){
-        getPermission()
+        this.getPermission()
     }
 
   render() {
-    return (
-      <View>
-        <Text>AudioProvider</Text>
-      </View>
-    )
+    if(this.state.permissionError) 
+        return <View style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center' ,
+            }}>
+            <Text style={{fontSize: 25,
+                textAlign: 'center',
+                color: 'blue'
+            }}>Görünüşe göre müzik zevkini görmemizi istemiyorsun...</Text>
+        </View>
+    return <AudioContext.Provider value={{audioFiles: this.state.audioFiles}}>
+        {this.props.children}
+    </AudioContext.Provider>
   }
 }
 
